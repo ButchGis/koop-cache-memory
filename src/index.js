@@ -57,8 +57,19 @@ Cache.prototype.append = function (key, geojson, options = {}, callback = noop) 
 
 Cache.prototype.retrieve = function (key, options, callback = noop) {
   if (!this.store.has(key)) return callback(new Error('Resource not found'))
-  const features = this.store.get(key)
+  let features = this.store.get(key)
   const metadata = this.catalog.store.get(key)
+  if (features && options && options.time && metadata.timeInfo && (metadata.timeInfo.startTimeField || metadata.timeInfo.endTimeField)) {
+    const times = options.time.split(',')
+    const sT = new Date(Number(times[0]))
+    const eT = new Date(Number(times[1]))
+    const timeFilter = (metadata.timeInfo.startTimeField && metadata.timeInfo.endTimeField)
+      ? function (feature) { return feature.properties[metadata.timeInfo.startTimeField] >= sT && feature.properties[metadata.timeInfo.endTimeField] <= eT }
+      : (metadata.timeInfo.endTimeField) ? function (feature) { return feature.properties[metadata.timeInfo.endTimeField] >= sT && feature.properties[metadata.timeInfo.endTimeField] <= eT }
+        : function (feature) { return feature.properties[metadata.timeInfo.startTimeField] >= sT && feature.properties[metadata.timeInfo.startTimeField] <= eT }
+
+    features = features.filter(timeFilter)
+  }
   const geojson = { type: 'FeatureCollection', metadata, features }
   callback(null, geojson)
   return geojson
